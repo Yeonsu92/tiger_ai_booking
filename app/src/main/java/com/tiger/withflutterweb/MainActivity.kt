@@ -69,7 +69,8 @@ class MainActivity : AppCompatActivity() {
 
                 }
             }
-            // [navigateHost] 골프장 상세페이지로 으로 이동하는 경우 실행할 js
+            // [navigateHost] 골프장 상세페이지로 으로 이동하는 경우 실행할 js.
+
             override fun onPageCommitVisible(view: WebView?, url: String?) {
                 val uri = Uri.parse(url ?: "")
                 if (uri.host == "www.tigerbooking.golf" && uri.path?.contains("Field") == true) {

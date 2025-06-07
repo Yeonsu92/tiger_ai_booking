@@ -1,5 +1,6 @@
 package com.tiger.withflutterweb
 
+import android.app.AlertDialog
 import android.content.Context
 import android.os.Bundle
 import android.webkit.WebView
@@ -16,6 +17,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
 import android.util.Log
+import android.webkit.JsResult
 
 import com.tiger.withflutterweb.FlutterBridge
 
@@ -55,6 +57,18 @@ class MainActivity : AppCompatActivity() {
         // hostWeb 설정
         hostWeb.settings.javaScriptEnabled = true
         hostWeb.settings.domStorageEnabled = true
+        hostWeb.webChromeClient = object : WebChromeClient() {
+            override fun onJsAlert(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
+                AlertDialog.Builder(view?.context)
+                    .setTitle("Alert from JS")
+                    .setMessage(message)
+                    .setPositiveButton("OK") { _, _ -> result?.confirm() }
+                    .create()
+                    .show()
+                return true
+            }
+        }
+
         hostWeb.loadUrl("https://www.tigerbooking.golf")
         hostWeb.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
@@ -95,7 +109,7 @@ class MainActivity : AppCompatActivity() {
         webSettings.loadsImagesAutomatically = true
         webSettings.domStorageEnabled = true
         flutterWeb.setBackgroundColor(Color.TRANSPARENT)
-        flutterWeb.addJavascriptInterface(    FlutterBridge(hostWeb, flutterWeb, this), "AndroidBridge")
+        flutterWeb.addJavascriptInterface(FlutterBridge(hostWeb, flutterWeb, this), "AndroidBridge")
         flutterWeb.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 injectMessageListener(view)

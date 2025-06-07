@@ -11,6 +11,16 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import org.json.JSONObject
 import androidx.constraintlayout.widget.ConstraintLayout
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 import com.tiger.withflutterweb.utils.dpToPx
 
@@ -42,6 +52,62 @@ class FlutterBridge(
         }, 100)
     }
 
+    fun sendRequestWithCoroutine(msg: JSONObject, parts: List<String>) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val dJson = msg.optJSONObject("data")?.toString() ?: "{}"
+                val gson = Gson()
+                val type = object : TypeToken<Map<String, Any>>() {}.type
+                val data: Map<String, Any> = gson.fromJson(dJson, type)
+
+                val requestBodyMap = mapOf(
+                    "action" to parts[1]
+                    // "data" to data ← 필요하다면 포함 가능
+                )
+
+                val rJson = gson.toJson(requestBodyMap)
+                val mediaType = "application/json; charset=utf-8".toMediaType()
+                val requestBody = rJson.toRequestBody(mediaType)
+
+                val request = Request.Builder()
+                    .url("https://tigerapi.platypusoft.com/api/v001/javascript/getScript")
+                    .post(requestBody)
+                    .build()
+
+                val client = OkHttpClient()
+                val response = client.newCall(request).execute()
+
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: ""
+
+                    val apiResponse = gson.fromJson(body, ApiResponse::class.java)
+
+                    withContext(Dispatchers.Main) {
+                        Log.d("==> result:", apiResponse.result.toString())
+                        Log.d("==> message:", apiResponse.resultMessage)
+                        Log.d("==> javascriptCode:", apiResponse.javascriptCode)
+
+                        if (apiResponse.result == 1) {
+                            if (parts[0] == "host") {
+                                hostWeb.evaluateJavascript(apiResponse.javascriptCode, null)
+                            } else {
+                                flutterWeb.evaluateJavascript(apiResponse.javascriptCode, null)
+                            }
+                        }
+                    }
+                } else {
+                    Log.e("==> Error:", "${response.code} ${response.message}")
+                }
+
+                response.close()
+
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Log.e("==> Exception", e.toString())
+                }
+            }
+        }
+    }
 
 
 
@@ -58,6 +124,7 @@ class FlutterBridge(
         }
 //flutter에서 수신한 메시지 처리
         activity.runOnUiThread {
+            Log.d("====>", action)
             when (action) {
                 // flutter -> android WebView 확장 요청 처리
                 // FlutterWeb의 FAB를 클릭했을시 발동
@@ -93,7 +160,7 @@ class FlutterBridge(
                 }
                 // flutter -> android WebView 축소 요청 처리
                 "collapseIframe" -> {
-                    collapseFlutterWeb()
+                        collapseFlutterWeb()
                 }
 
                 //   flutter -> android WebView 리다이렉트 요청 처리
@@ -121,7 +188,15 @@ class FlutterBridge(
                         activity.startActivity(intent)
                     }
                 }
+                else -> {
+                    // 해당 메시지를 서버로 보내서, 원하는 스크립트를 받아 온다.
+                    // action 은 host:hello, flutter:hello 형식으로 처리되어야 한다.
+                    val parts = action.split(":")
 
+                    if (parts.size == 2) {
+                        sendRequestWithCoroutine(msg, parts)
+                    }
+                }
 
             }
         }

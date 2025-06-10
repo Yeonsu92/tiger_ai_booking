@@ -159,7 +159,7 @@ class FlutterBridge(
                         flutterWeb.requestLayout()
                         // android->flutter 확장 완료 notify
                         val js = """
-    window.postMessage({ action: "iframe-expanded" }, "*");
+    window.postMessage({ type: "iframe-expanded" }, "*");
 """.trimIndent()
                         flutterWeb.evaluateJavascript(js, null)
                         // 키보드 올라올 때 WebView 높이 자동 조절

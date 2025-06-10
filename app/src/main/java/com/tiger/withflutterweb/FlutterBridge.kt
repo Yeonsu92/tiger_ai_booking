@@ -32,27 +32,9 @@ class FlutterBridge(
     private val activity: Activity
 ) {
 
-    fun collapseFlutterWeb() {
-        Log.d("customLog", "[collapseFlutterWeb] 호출됨")
-        val params = flutterWeb.layoutParams as ConstraintLayout.LayoutParams
-        params.width = dpToPx(60, activity)
-        params.height = dpToPx(60, activity)
-        params.startToStart = ConstraintLayout.LayoutParams.UNSET
-        params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-        params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-        params.bottomMargin = dpToPx(120, activity)
-        flutterWeb.layoutParams = params
-        flutterWeb.requestLayout()
-
-        hostWeb.setOnTouchListener(null)
-
-        val js = """window.postMessage({ type: "iframe-collapsed" }, "*");""".trimIndent()
-        Handler(Looper.getMainLooper()).postDelayed({
-            flutterWeb.evaluateJavascript(js, null)
-        }, 100)
-    }
-
+    // 요청이 서버를 거칠 필요가 있는 경우
     fun sendRequestWithCoroutine(msg: JSONObject, parts: List<String>) {
+        Log.d("====>", "[sendRequestWithCoroutine] start")
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val dJson = msg.optJSONObject("data")?.toString() ?: "{}"
@@ -60,11 +42,18 @@ class FlutterBridge(
                 val type = object : TypeToken<Map<String, Any>>() {}.type
                 val data: Map<String, Any> = gson.fromJson(dJson, type)
 
-                val requestBodyMap = mapOf(
-                    "action" to parts[1]
-                    // "data" to data ← 필요하다면 포함 가능
-                )
+                val rawData = data["data"]
+                Log.d("===>", "rawData: $rawData, type: ${rawData?.javaClass}")
 
+                val requestBodyMap = if (rawData != null) {
+                    mapOf("action" to parts[1], "data" to rawData)
+                } else {
+                    Log.e("===>", "data['data'] is null: $data")
+                    mapOf("action" to parts[1])
+                }
+
+                Log.d("====>", "requestBodyMap")
+                Log.d("====>", gson.toJson(requestBodyMap))
                 val rJson = gson.toJson(requestBodyMap)
                 val mediaType = "application/json; charset=utf-8".toMediaType()
                 val requestBody = rJson.toRequestBody(mediaType)
@@ -78,6 +67,7 @@ class FlutterBridge(
                 val response = client.newCall(request).execute()
 
                 if (response.isSuccessful) {
+                    Log.d("====>","success")
                     val body = response.body?.string() ?: ""
 
                     val apiResponse = gson.fromJson(body, ApiResponse::class.java)
@@ -109,16 +99,37 @@ class FlutterBridge(
         }
     }
 
+    fun collapseFlutterWeb() {
+        Log.d("====>", "[collapseFlutterWeb] start")
+        val params = flutterWeb.layoutParams as ConstraintLayout.LayoutParams
+        params.width = dpToPx(60, activity)
+        params.height = dpToPx(60, activity)
+        params.startToStart = ConstraintLayout.LayoutParams.UNSET
+        params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+        params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+        params.bottomMargin = dpToPx(120, activity)
+        flutterWeb.layoutParams = params
+        flutterWeb.requestLayout()
+
+        hostWeb.setOnTouchListener(null)
+
+        val js = """window.postMessage({ action: "iframe-collapsed" }, "*");""".trimIndent()
+        Handler(Looper.getMainLooper()).postDelayed({
+            flutterWeb.evaluateJavascript(js, null)
+        }, 100)
+    }
+
 
 
     @JavascriptInterface
     fun onFlutterMessage(json: String) {
         val msg = JSONObject(json)
+        Log.d("====>", "msg:$msg")
+
         val action = when {
             msg.has("action") -> msg.getString("action")
-            msg.has("type") -> msg.getString("type")
             else -> {
-                Log.e("customLog", "Missing 'action' and 'type' in message: $json")
+                Log.e("====>", "Missing 'action' in message: $json")
                 return
             }
         }
@@ -148,7 +159,7 @@ class FlutterBridge(
                         flutterWeb.requestLayout()
                         // android->flutter 확장 완료 notify
                         val js = """
-    window.postMessage({ type: "iframe-expanded" }, "*");
+    window.postMessage({ action: "iframe-expanded" }, "*");
 """.trimIndent()
                         flutterWeb.evaluateJavascript(js, null)
                         // 키보드 올라올 때 WebView 높이 자동 조절
@@ -160,28 +171,28 @@ class FlutterBridge(
                 }
                 // flutter -> android WebView 축소 요청 처리
                 "collapseIframe" -> {
-                        collapseFlutterWeb()
+                    collapseFlutterWeb()
                 }
 
                 //   flutter -> android WebView 리다이렉트 요청 처리
                 // 타임라인 페이지에서 "일정카드 - 골프"를 터치했을때 발동
                 "navigateHost" -> {
-                    Log.d("customLog", "onFlutterMessage called with: $json")
+                    Log.d("===>", "onFlutterMessage called with: $json")
                     val data = msg.optJSONObject("data")
                     val url = data?.optString("url")
                     if (!url.isNullOrEmpty()) {
-                        Log.i("customLog", "Navigating to URL: $url")
+                        Log.i("===>", "Navigating to URL: $url")
                         hostWeb.loadUrl(url)
                     }
                 }
                 //   flutter -> android WebView 새창열기 요청 처리
                 // 타임라인 페이지에서 골프 외 일정카드를 터치했을때 발동
                 "openWindow" -> {
-                    Log.d("customLog", "onFlutterMessage called with: $json")
+                    Log.d("===>", "onFlutterMessage called with: $json")
                     val data = msg.optJSONObject("data")
                     val url = data?.optString("url")
                     if (!url.isNullOrEmpty()) {
-                        Log.i("customLog", "Opening external browser to: $url")
+                        Log.i("===>", "Opening external browser to: $url")
 
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -202,3 +213,4 @@ class FlutterBridge(
         }
     }
 }
+

@@ -79,7 +79,7 @@ class MainActivity : AppCompatActivity() {
         hostWeb.loadUrl("https://www.tigerbooking.golf")
         hostWeb.webViewClient = object : WebViewClient() {
             // [navigateHost] 골프장 상세페이지로 으로 이동하는 경우 실행할 js.
-
+            // TODO: onPageFinished로 합치기
             override fun onPageCommitVisible(view: WebView?, url: String?) {
                 val uri = Uri.parse(url ?: "")
                 if (uri.host == "www.tigerbooking.golf" && (uri.path?.contains("Field") == true)) {
@@ -92,18 +92,34 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+
+            //hostWeb의 onPageFinshed 될 때마다 서버에 요청해서 특정 js파일을 실행시키는 로직.
+            //목적 : 안드로이드 파일 수정 없이도 hostWeb의 onPageFinished에 다양한 이벤트를 등록하기 위함
+
             override fun onPageFinished(view: WebView?, url: String?) {
-                val uri = Uri.parse(url ?: "")
-                if (uri.host == "www.tigerbooking.golf" && (uri.path?.contains("Product/Search") == true) && uri.getQueryParameter("scroll") == "true") {
-                    val msg = JSONObject().apply {
-                        put("action", "host:scrollToBottom")
+                //flutter 메시지에 shouldRunScriptOnNextFinish을 추가한 후 주석 해제
+            //    if (flutterBridge.shouldRunScriptOnNextFinish) {
+                    val msgToHost = JSONObject().apply {
+                        put("action", "host:onPageFinished")
+                        put("data", JSONObject().apply {
+                            put("data", url)
+                        })
                     }
-                    val msg2 = JSONObject().apply {
-                        put("action", "flutter:reachedToProductPage")
+                    val msgToFlutter = JSONObject().apply {
+                        put("action", "flutter:onHostPageFinished")
+                        put("data", JSONObject().apply {
+                            put("data", url)
+                        })
                     }
-                    flutterBridge.sendRequestWithCoroutine(msg, listOf("host", "scrollToBottom"))
-                    flutterBridge.sendRequestWithCoroutine(msg2, listOf("flutter", "reachedToProductPage"))
-                }
+                    flutterBridge.sendRequestWithCoroutine(
+                        msgToHost,
+                        listOf("host", "onPageFinished")
+                    )
+                    flutterBridge.sendRequestWithCoroutine(
+                        msgToFlutter,
+                        listOf("flutter", "onHostPageFinished")
+                    )
+            //    }
             }
         }
 
@@ -122,6 +138,4 @@ class MainActivity : AppCompatActivity() {
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_USER
         flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter")
     }
-
-
 }

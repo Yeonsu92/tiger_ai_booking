@@ -32,6 +32,14 @@ class FlutterBridge(
     private val activity: Activity
 ) {
 
+    private var runScriptOnNextFinish = false;
+
+    val shouldRunScriptOnNextFinish :Boolean    get() = runScriptOnNextFinish
+
+    fun setShouldRunScriptOnNextFinish(value: Boolean) {
+        runScriptOnNextFinish = value
+    }
+
     // 요청이 서버를 거칠 필요가 있는 경우
     fun sendRequestWithCoroutine(msg: JSONObject, parts: List<String>) {
         Log.d("====>", "[sendRequestWithCoroutine] start")
@@ -43,17 +51,16 @@ class FlutterBridge(
                 val data: Map<String, Any> = gson.fromJson(dJson, type)
 
                 val rawData = data["data"]
-                Log.d("===>", "rawData: $rawData, type: ${rawData?.javaClass}")
+                Log.d("===>", "rawData: $rawData, dataType: ${rawData?.javaClass}")
 
                 val requestBodyMap = if (rawData != null) {
                     mapOf("action" to parts[1], "data" to rawData)
                 } else {
-                    Log.e("===>", "data['data'] is null: $data")
+                    Log.d("===>", "data['data'] is null")
                     mapOf("action" to parts[1])
                 }
 
-                Log.d("====>", "requestBodyMap")
-                Log.d("====>", gson.toJson(requestBodyMap))
+                Log.d("====> requestBodyMap::", gson.toJson(requestBodyMap))
                 val rJson = gson.toJson(requestBodyMap)
                 val mediaType = "application/json; charset=utf-8".toMediaType()
                 val requestBody = rJson.toRequestBody(mediaType)
@@ -112,8 +119,8 @@ class FlutterBridge(
         flutterWeb.requestLayout()
 
         hostWeb.setOnTouchListener(null)
-
-        val js = """window.postMessage({ action: "iframe-collapsed" }, "*");""".trimIndent()
+//TODO: 다음 플러터 배포때  type->action으로 이름 통일
+        val js = """window.postMessage({ type: "iframe-collapsed" }, "*");""".trimIndent()
         Handler(Looper.getMainLooper()).postDelayed({
             flutterWeb.evaluateJavascript(js, null)
         }, 100)
@@ -133,6 +140,14 @@ class FlutterBridge(
                 return
             }
         }
+// onPageFinished를 실행시켜야하는지 여부
+        val shouldNotify = when {
+            msg.has("runScriptOnNextFinish") -> msg.getBoolean("runScriptOnNextFinish")
+           else -> false
+        }
+        setShouldRunScriptOnNextFinish(shouldNotify)
+
+
 //flutter에서 수신한 메시지 처리
         activity.runOnUiThread {
             Log.d("====>", action)
@@ -143,7 +158,7 @@ class FlutterBridge(
                     // hostWeb 터치 차단 (optional)
                     hostWeb.setOnTouchListener { _, _ -> true } // true = consume touch
 
-
+                        // flutter가 확장에 대비할 시간을 준다.
                     Handler(Looper.getMainLooper()).postDelayed({
                         val params = flutterWeb.layoutParams as ConstraintLayout.LayoutParams
                         params.width = ViewGroup.LayoutParams.MATCH_PARENT
@@ -164,26 +179,13 @@ class FlutterBridge(
                         flutterWeb.evaluateJavascript(js, null)
                         // 키보드 올라올 때 WebView 높이 자동 조절
                         KeyboardUtils.setupKeyboardTranslation(activity, flutterWeb)
-                    }, 200) // Flutter가 화면 확장에 대비를 할 시간을 줌
-
+                    }, 200)
 
 
                 }
                 // flutter -> android WebView 축소 요청 처리
                 "collapseIframe" -> {
                     collapseFlutterWeb()
-                }
-
-                //   flutter -> android WebView 리다이렉트 요청 처리
-                // 타임라인 페이지에서 "일정카드 - 골프"를 터치했을때 발동
-                "navigateHost" -> {
-                    Log.d("===>", "onFlutterMessage called with: $json")
-                    val data = msg.optJSONObject("data")
-                    val url = data?.optString("url")
-                    if (!url.isNullOrEmpty()) {
-                        Log.i("===>", "Navigating to URL: $url")
-                        hostWeb.loadUrl(url)
-                    }
                 }
                 //   flutter -> android WebView 새창열기 요청 처리
                 // 타임라인 페이지에서 골프 외 일정카드를 터치했을때 발동

@@ -33,16 +33,53 @@ class FlutterBridge(
 ) {
 
     private var runScriptOnNextFinish = false;
+    private var collapseIframeBySideEffect = false
+    private var currentLang:String = "EN"
 
     val shouldRunScriptOnNextFinish :Boolean    get() = runScriptOnNextFinish
+    val shouldCollapseIframeBySideEffect:Boolean get() =  collapseIframeBySideEffect
 
     fun setShouldRunScriptOnNextFinish(value: Boolean) {
         runScriptOnNextFinish = value
     }
+    fun setShouldCollapseIframeBySideEffect(value: Boolean) {
+        collapseIframeBySideEffect = value
+    }
+
+    fun readLanguageFromLocalStorage() {
+        val js = """
+        (function() {
+            var lang = localStorage.getItem('siteLang') || '';
+            console.log('[WebView A] siteLang:', lang);
+            AndroidBridge.updateLang(lang);
+        })();
+    """.trimIndent()
+
+        hostWeb.evaluateJavascript(js, null)
+    }
+    @JavascriptInterface
+    fun updateLang(lang:String) {
+        currentLang = lang
+    }
+
+    fun onLangReceived() {
+        Log.d("===>", "onLangReceived. lang: $currentLang")
+
+//        val js = """
+//    window.postMessage({ type: "iframe-expanded" }, "*");
+//""".trimIndent()
+//        flutterWeb.evaluateJavascript(js, null)
+
+        val safeLang = JSONObject.quote(currentLang)
+        val js = """window.postMessage({ action: "sendLang", lang: $safeLang }, "*");""".trimIndent()
+
+        flutterWeb.evaluateJavascript(js, null)
+    }
+
 
     // 요청이 서버를 거칠 필요가 있는 경우
     fun sendRequestWithCoroutine(msg: JSONObject, parts: List<String>) {
-        Log.d("====>", "[sendRequestWithCoroutine] start")
+      //  Log.d("====>", "[sendRequestWithCoroutine] start")
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val dJson = msg.optJSONObject("data")?.toString() ?: "{}"
@@ -60,7 +97,7 @@ class FlutterBridge(
                     mapOf("action" to parts[1])
                 }
 
-                Log.d("====> requestBodyMap::", gson.toJson(requestBodyMap))
+           //     Log.d("====> requestBodyMap::", gson.toJson(requestBodyMap))
                 val rJson = gson.toJson(requestBodyMap)
                 val mediaType = "application/json; charset=utf-8".toMediaType()
                 val requestBody = rJson.toRequestBody(mediaType)
@@ -82,7 +119,7 @@ class FlutterBridge(
                     withContext(Dispatchers.Main) {
                         Log.d("==> result:", apiResponse.result.toString())
                         Log.d("==> message:", apiResponse.resultMessage)
-                        Log.d("==> javascriptCode:", apiResponse.javascriptCode)
+                  //      Log.d("==> javascriptCode:", apiResponse.javascriptCode)
 
                         if (apiResponse.result == 1) {
                             if (parts[0] == "host") {
@@ -142,10 +179,17 @@ class FlutterBridge(
         }
 // onPageFinished를 실행시켜야하는지 여부
         val shouldNotify = when {
-            msg.has("runScriptOnNextFinish") -> msg.getBoolean("runScriptOnNextFinish")
+            msg.has("runScriptOnHostPageFinish") -> msg.getBoolean("runScriptOnHostPageFinish")
            else -> false
         }
         setShouldRunScriptOnNextFinish(shouldNotify)
+    //hostWeb의 페이지 이동 등의 이유로, 페이지로딩이 끝난 후 iframe을 닫아야할 때
+        val shouldCollapseIFrame = when {
+            msg.has("collapseIframeAfterThisAction")  -> msg.getBoolean("collapseIframeAfterThisAction")
+            else -> false
+        }
+        setShouldCollapseIframeBySideEffect(shouldCollapseIFrame)
+
 
 
 //flutter에서 수신한 메시지 처리

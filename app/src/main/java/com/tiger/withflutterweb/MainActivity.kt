@@ -2,32 +2,56 @@ package com.tiger.withflutterweb
 
 import android.app.AlertDialog
 import android.content.Context
+import android.content.pm.ActivityInfo
+import android.graphics.Color
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.view.KeyEvent
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.webkit.JsResult
+import android.webkit.WebChromeClient
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.webkit.WebSettings
-import android.webkit.WebChromeClient
-import android.view.WindowManager
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import android.content.pm.ActivityInfo
-import android.graphics.Color
-import android.net.Uri
-import android.view.ViewGroup
-import android.webkit.JsResult
-import androidx.activity.OnBackPressedCallback
 import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
     private lateinit var flutterWeb: WebView
     private lateinit var hostWeb: WebView
+    private val siteLang:String = "EN" // 기본값
+    private var isBackHandlerEnabled = true // 무한 루프 방지용 플래그
+    private val handler = Handler(Looper.getMainLooper())
 
     private fun loadJSFromAssets(context: Context, fileName: String): String {
         return context.assets.open(fileName).bufferedReader().use { it.readText() }
     }
 
+    // dispatchKeyEvent 수정 - 무한 루프 방지
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_BACK) {
+            Log.d("===>", "dispatchKeyEvent: BACK key detected")
+
+            // 뒤로가기 처리가 이미 진행 중이면 중복 처리 방지
+            if (isBackHandlerEnabled) {
+                isBackHandlerEnabled = false
+                onBackPressedDispatcher.onBackPressed()
+                // 짧은 딜레이 후 다시 활성화
+                handler.postDelayed({ isBackHandlerEnabled = true }, 100)
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -37,33 +61,55 @@ class MainActivity : AppCompatActivity() {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
 
         hostWeb = findViewById(R.id.hostWebView)
         flutterWeb = findViewById(R.id.flutterWebView)
         val flutterBridge = FlutterBridge(hostWeb, flutterWeb, this)
 
-        // 뒤로가기 콜백 등록
+
+
+// 뒤로가기 콜백 등록
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+
             override fun handleOnBackPressed() {
+                Log.d("===> ", "handleOnBackPressed :start =======")
+
                 val layoutParams = flutterWeb.layoutParams as ViewGroup.LayoutParams
                 val isFlutterExpanded = layoutParams.width == ViewGroup.LayoutParams.MATCH_PARENT &&
                         layoutParams.height == ViewGroup.LayoutParams.MATCH_PARENT
 
-                when {
-                    isFlutterExpanded && flutterWeb.canGoBack() -> flutterWeb.goBack()
-                    hostWeb.canGoBack() -> hostWeb.goBack()
-                    else -> {
-                        isEnabled = false
-                        onBackPressedDispatcher.onBackPressed()
-                    }
+                if (isFlutterExpanded) {
+                    Log.d("===> ", "handleOnBackPressed : flutter에서 뒤로가기 처리")
+                    // 1. Flutter에 직접 메시지 → handleBack 요청
+                    val js = """window.postMessage({ action: "handleBack" }, "*");""".trimIndent()
+                    flutterWeb.evaluateJavascript(js, null)
+
+                } else if (hostWeb.canGoBack()) {
+                    Log.d("===> ", "handleOnBackPressed : hostWeb뒤로 갈 수 있음")
+                    hostWeb.goBack()
+                } else {
+                    Log.d("===> ", "handleOnBackPressed : hostWeb뒤로갈 수 없음, 앱종료")
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+
+                    // 0.5초 후 다시 콜백 활성화
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        isEnabled = true
+                    }, 500)
                 }
             }
         })
 
 
+
+
         // hostWeb 설정
         hostWeb.settings.javaScriptEnabled = true
         hostWeb.settings.domStorageEnabled = true
+        hostWeb.addJavascriptInterface(flutterBridge, "AndroidBridge")
         hostWeb.webChromeClient = object : WebChromeClient() {
             override fun onJsAlert(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
                 AlertDialog.Builder(view?.context)
@@ -77,27 +123,48 @@ class MainActivity : AppCompatActivity() {
         }
 
         hostWeb.loadUrl("https://www.tigerbooking.golf")
+
         hostWeb.webViewClient = object : WebViewClient() {
             // [navigateHost] 골프장 상세페이지로 으로 이동하는 경우 실행할 js.
-            // TODO: onPageFinished로 합치기
+
             override fun onPageCommitVisible(view: WebView?, url: String?) {
-                val uri = Uri.parse(url ?: "")
-                if (uri.host == "www.tigerbooking.golf" && (uri.path?.contains("Field") == true)) {
-
+                super.onPageCommitVisible(view, url)
+                if (flutterBridge.shouldCollapseIframeBySideEffect) {
                     val msg = JSONObject().apply {
-                        put("action", "flutter:navigate-Finished")
+                        put("action", "flutter:navigateFinished")
                     }
-                    flutterBridge.sendRequestWithCoroutine(msg, listOf("flutter", "navigate-Finished"))
-                    flutterBridge.collapseFlutterWeb()
+                    val msgToHost = JSONObject().apply {
+                        put("action", "collapseIframe")
+                    }
+                    flutterBridge.onFlutterMessage(msgToHost.toString())
+                    flutterBridge.sendRequestWithCoroutine(msg, listOf("flutter", "navigateFinished"))
                 }
+                // TODO: 다음 배포 이후 주석까지 삭제
+                val uri = Uri.parse(url ?: "")
+//                if (uri.host == "www.tigerbooking.golf" && (uri.path?.contains("Field") == true)) {
+//
+//                    val msg = JSONObject().apply {
+//                        put("action", "flutter:navigate-Finished")
+//                    }
+//                    val msgToHost = JSONObject().apply {
+//                        put("action", "collapseIframe")
+//                    }
+//                    flutterBridge.onFlutterMessage(msgToHost.toString())
+//                    flutterBridge.sendRequestWithCoroutine(
+//                        msg,
+//                        listOf("flutter", "navigate-Finished")
+//                    )
+//                }
             }
-
 
             //hostWeb의 onPageFinshed 될 때마다 서버에 요청해서 특정 js파일을 실행시키는 로직.
             //목적 : 안드로이드 파일 수정 없이도 hostWeb의 onPageFinished에 다양한 이벤트를 등록하기 위함
 
             override fun onPageFinished(view: WebView?, url: String?) {
-                //flutter 메시지에 shouldRunScriptOnNextFinish을 추가한 후 주석 해제
+                super.onPageFinished(view, url);
+                //flutterBridge.readLanguageFromLocalStorage();
+
+                //flutter 메시지에 runScriptOnHostPageFinish이 추가된 버전이 배포되면 해제해도됨
             //    if (flutterBridge.shouldRunScriptOnNextFinish) {
                     val msgToHost = JSONObject().apply {
                         put("action", "host:onPageFinished")
@@ -130,12 +197,36 @@ class MainActivity : AppCompatActivity() {
         webSettings.loadsImagesAutomatically = true
         webSettings.domStorageEnabled = true
         flutterWeb.setBackgroundColor(Color.TRANSPARENT)
-        flutterWeb.addJavascriptInterface(FlutterBridge(hostWeb, flutterWeb, this), "AndroidBridge")
-        flutterWeb.webViewClient = WebViewClient()
+        flutterWeb.addJavascriptInterface(flutterBridge, "AndroidBridge")
+        flutterWeb.webViewClient = object :WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                flutterBridge.onLangReceived()
+            }
+
+
+        }
         flutterWeb.webChromeClient = WebChromeClient()
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_USER
-        flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter")
+//        flutterWeb.loadUrl("http://172.17.0.193:30000")
+      flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}")
     }
+
+//    override fun onDestroy() {
+//
+//        super.onDestroy()
+//        flutterWeb.loadUrl("about:blank")
+//        flutterWeb.clearHistory()
+//        flutterWeb.removeAllViews()
+//        flutterWeb.destroy()
+//
+//        hostWeb.loadUrl("about:blank")
+//        hostWeb.clearHistory()
+//        hostWeb.removeAllViews()
+//        hostWeb.destroy()
+//    }
+
 }
+

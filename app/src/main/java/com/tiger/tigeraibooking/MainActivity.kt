@@ -1,11 +1,10 @@
-package com.tiger.withflutterweb
+package com.tiger.tigeraibooking
 
 import android.app.AlertDialog
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -64,7 +63,6 @@ class MainActivity : AppCompatActivity() {
         hostWeb = findViewById(R.id.hostWebView)
         flutterWeb = findViewById(R.id.flutterWebView)
         val flutterBridge = FlutterBridge(hostWeb, flutterWeb, this)
-
             clearWebViewCache(this)
             flutterWeb.clearCache(true)
 
@@ -124,12 +122,11 @@ class MainActivity : AppCompatActivity() {
         hostWeb.loadUrl("https://www.tigerbooking.golf")
 
         hostWeb.webViewClient = object : WebViewClient() {
-            // [navigateHost] 골프장 상세페이지로 으로 이동하는 경우 실행할 js.
+            // [navigateHost] 네이게이션이 끝나면 flutter에게 알려, 플러터 웹뷰를 닫는다.
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
 
                 if (flutterBridge.shouldCollapseIframeBySideEffect) {
-                    Log.d( "===>" , "sideEffect")
                     val msg = JSONObject().apply {
                         put("action", "flutter:navigateFinished")
                     }

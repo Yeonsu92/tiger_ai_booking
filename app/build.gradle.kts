@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.tiger.withflutterweb"
+    namespace = "com.tiger.tigeraibooking"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.tiger.withflutterweb"
+        applicationId = "com.tiger.tigeraibooking"
         minSdk = 24
         targetSdk = 35
         versionCode = 1

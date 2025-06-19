@@ -1,4 +1,4 @@
-package com.tiger.withflutterweb
+package com.tiger.tigeraibooking
 
 data class ApiResponse(
     val result: Int,

@@ -39,10 +39,10 @@ class FlutterBridge(
     val shouldRunScriptOnNextFinish :Boolean    get() = runScriptOnNextFinish
     val shouldCollapseIframeBySideEffect:Boolean get() =  collapseIframeBySideEffect
 
-    fun setShouldRunScriptOnNextFinish(value: Boolean) {
+    private fun setShouldRunScriptOnNextFinish(value: Boolean) {
         runScriptOnNextFinish = value
     }
-    fun setShouldCollapseIframeBySideEffect(value: Boolean) {
+    private fun setShouldCollapseIframeBySideEffect(value: Boolean) {
         collapseIframeBySideEffect = value
     }
 
@@ -119,7 +119,7 @@ class FlutterBridge(
                     withContext(Dispatchers.Main) {
                         Log.d("==> result:", apiResponse.result.toString())
                         Log.d("==> message:", apiResponse.resultMessage)
-                  //      Log.d("==> javascriptCode:", apiResponse.javascriptCode)
+                        Log.d("==> javascriptCode:", apiResponse.javascriptCode)
 
                         if (apiResponse.result == 1) {
                             if (parts[0] == "host") {
@@ -156,8 +156,7 @@ class FlutterBridge(
         flutterWeb.requestLayout()
 
         hostWeb.setOnTouchListener(null)
-//TODO: 다음 플러터 배포때  type->action으로 이름 통일
-        val js = """window.postMessage({ type: "iframe-collapsed" }, "*");""".trimIndent()
+        val js = """window.postMessage({ action: "iframe-collapsed" }, "*");""".trimIndent()
         Handler(Looper.getMainLooper()).postDelayed({
             flutterWeb.evaluateJavascript(js, null)
         }, 100)
@@ -218,7 +217,7 @@ class FlutterBridge(
                         flutterWeb.requestLayout()
                         // android->flutter 확장 완료 notify
                         val js = """
-    window.postMessage({ type: "iframe-expanded" }, "*");
+    window.postMessage({ action: "iframe-expanded" }, "*");
 """.trimIndent()
                         flutterWeb.evaluateJavascript(js, null)
                         // 키보드 올라올 때 WebView 높이 자동 조절
@@ -229,8 +228,17 @@ class FlutterBridge(
                 }
                 // flutter -> android WebView 축소 요청 처리
                 "collapseIframe" -> {
+                    Log.d("===>", "\uD83D\uDE00 collapseIframe called")
                     collapseFlutterWeb()
                 }
+                "navigateHost" -> {
+                    val data = msg.optJSONObject("data")
+                    val url = data?.optString("url")
+                    if (!url.isNullOrEmpty()) {
+                        hostWeb.loadUrl(url)
+                    }
+                }
+                "host:navigateHost" -> {}
                 //   flutter -> android WebView 새창열기 요청 처리
                 // 타임라인 페이지에서 골프 외 일정카드를 터치했을때 발동
                 "openWindow" -> {

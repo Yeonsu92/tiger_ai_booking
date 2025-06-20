@@ -228,7 +228,7 @@ class FlutterBridge(
                 }
                 // flutter -> android WebView 축소 요청 처리
                 "collapseIframe" -> {
-                    Log.d("===>", "\uD83D\uDE00 collapseIframe called")
+
                     collapseFlutterWeb()
                 }
                 "navigateHost" -> {

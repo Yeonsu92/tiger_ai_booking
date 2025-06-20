@@ -62,9 +62,11 @@ class MainActivity : AppCompatActivity() {
 
         hostWeb = findViewById(R.id.hostWebView)
         flutterWeb = findViewById(R.id.flutterWebView)
+
         val flutterBridge = FlutterBridge(hostWeb, flutterWeb, this)
-            clearWebViewCache(this)
-            flutterWeb.clearCache(true)
+
+        clearWebViewCache(this)
+        flutterWeb.clearCache(true)
 
 
 
@@ -189,9 +191,7 @@ class MainActivity : AppCompatActivity() {
         flutterWeb.webChromeClient = WebChromeClient()
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_USER
-
-    flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}")
+  flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}")
     }
     // dispatchKeyEvent 수정 - 무한 루프 방지
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

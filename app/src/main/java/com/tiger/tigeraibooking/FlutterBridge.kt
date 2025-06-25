@@ -38,6 +38,7 @@ class FlutterBridge(
 
     val shouldRunScriptOnNextFinish :Boolean    get() = runScriptOnNextFinish
     val shouldCollapseIframeBySideEffect:Boolean get() =  collapseIframeBySideEffect
+    val currentHostWebLang:String get()= currentLang
 
     private fun setShouldRunScriptOnNextFinish(value: Boolean) {
         runScriptOnNextFinish = value
@@ -49,31 +50,29 @@ class FlutterBridge(
     fun readLanguageFromLocalStorage() {
         val js = """
         (function() {
+            var hasSiteLang = "siteLang" in localStorage;
             var lang = localStorage.getItem('siteLang') || '';
-            console.log('[WebView A] siteLang:', lang);
-            AndroidBridge.updateLang(lang);
+            console.log("siteLang exists:", hasSiteLang, "| value:", lang);
+            AndroidBridge.updateLang(hasSiteLang, lang); 
         })();
     """.trimIndent()
 
         hostWeb.evaluateJavascript(js, null)
     }
+    //사용자가 hostWeb의 언어를 변경하면, flutterWeb으로 전달한다.
     @JavascriptInterface
-    fun updateLang(lang:String) {
+    fun updateLang(hasSiteLang:Boolean, lang: String) {
+        Log.d("====>", "is siteLang exist in localStorage: $hasSiteLang")
+        Log.d("====>", "updateLang called with: $lang")
         currentLang = lang
-    }
 
-    fun onLangReceived() {
-        Log.d("===>", "onLangReceived. lang: $currentLang")
+        //flutterWeb에 hostWeb의 localStorage sitelang 설정 전달
+        Handler(Looper.getMainLooper()).post {
+            val safeLang = JSONObject.quote(currentLang)
+            val js = """window.postMessage({ action: "sendLang", lang: $safeLang}, "*");"""
 
-//        val js = """
-//    window.postMessage({ type: "iframe-expanded" }, "*");
-//""".trimIndent()
-//        flutterWeb.evaluateJavascript(js, null)
-
-        val safeLang = JSONObject.quote(currentLang)
-        val js = """window.postMessage({ action: "sendLang", lang: $safeLang }, "*");""".trimIndent()
-
-        flutterWeb.evaluateJavascript(js, null)
+            flutterWeb.evaluateJavascript(js, null)
+        }
     }
 
 
@@ -195,6 +194,13 @@ class FlutterBridge(
         activity.runOnUiThread {
             Log.d("====>", action)
             when (action) {
+                // flutterWeb이 로딩되면, hostWeb의 언어설정을 전달한다.
+                "flutterIsReady" -> {
+                    val safeLang = JSONObject.quote(currentLang)
+
+                    val js = """     window.postMessage({ action: "sendLang", lang: $safeLang }, "*"); """
+                    flutterWeb.evaluateJavascript(js, null)
+                }
                 // flutter -> android WebView 확장 요청 처리
                 // FlutterWeb의 FAB를 클릭했을시 발동
                 "expandIframe" -> {
@@ -202,7 +208,7 @@ class FlutterBridge(
                     hostWeb.setOnTouchListener { _, _ -> true } // true = consume touch
 
                         // flutter가 확장에 대비할 시간을 준다.
-                    Handler(Looper.getMainLooper()).postDelayed({
+                  Handler(Looper.getMainLooper()).postDelayed({
                         val params = flutterWeb.layoutParams as ConstraintLayout.LayoutParams
                         params.width = ViewGroup.LayoutParams.MATCH_PARENT
                         params.height = ViewGroup.LayoutParams.MATCH_PARENT
@@ -222,7 +228,7 @@ class FlutterBridge(
                         flutterWeb.evaluateJavascript(js, null)
                         // 키보드 올라올 때 WebView 높이 자동 조절
                         KeyboardUtils.setupKeyboardTranslation(activity, flutterWeb)
-                    }, 200)
+                   }, 200)
 
 
                 }

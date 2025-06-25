@@ -2,7 +2,6 @@ package com.tiger.tigeraibooking
 
 import android.app.AlertDialog
 import android.content.Context
-import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Build
@@ -122,7 +121,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         hostWeb.loadUrl("https://www.tigerbooking.golf")
-
         hostWeb.webViewClient = object : WebViewClient() {
             // [navigateHost] 네이게이션이 끝나면 flutter에게 알려, 플러터 웹뷰를 닫는다.
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
@@ -143,7 +141,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url);
-                //flutterBridge.readLanguageFromLocalStorage();
+                flutterBridge.readLanguageFromLocalStorage();
 
                 //flutter 메시지에 runScriptOnHostPageFinish이 추가된 버전이 배포되면 해제해도됨
                if (flutterBridge.shouldRunScriptOnNextFinish) {
@@ -178,12 +176,28 @@ class MainActivity : AppCompatActivity() {
         webSettings.loadsImagesAutomatically = true
         webSettings.domStorageEnabled = true
         webSettings.cacheMode = WebSettings.LOAD_NO_CACHE
+//// 롱프레스 선택 가능하게 하는 법 모색중.
+//        flutterWeb.isLongClickable = true
+//        flutterWeb.isFocusable = true
+//        flutterWeb.isFocusableInTouchMode = true
+//
+//        flutterWeb.setOnLongClickListener { false } // 롱클릭 기본 동작 허용
+
         flutterWeb.setBackgroundColor(Color.TRANSPARENT)
         flutterWeb.addJavascriptInterface(flutterBridge, "AndroidBridge")
         flutterWeb.webViewClient = object :WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                flutterBridge.onLangReceived()
+                //// 롱프레스 선택 가능하게 하는 법 모색중.
+                flutterWeb.evaluateJavascript(
+                    """
+            (function() {
+                document.body.style.webkitUserSelect = 'text';
+                document.body.style.userSelect = 'text';
+            })();
+            """.trimIndent(),
+                    null
+                )
             }
 
 
@@ -191,7 +205,7 @@ class MainActivity : AppCompatActivity() {
         flutterWeb.webChromeClient = WebChromeClient()
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-  flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}")
+ flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}")
     }
     // dispatchKeyEvent 수정 - 무한 루프 방지
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

@@ -13,6 +13,7 @@ import org.json.JSONObject
 import androidx.constraintlayout.widget.ConstraintLayout
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.tiger.tigeraibooking.utils.HandleFirstLaunch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -24,7 +25,7 @@ import kotlinx.coroutines.withContext
 
 import com.tiger.tigeraibooking.utils.dpToPx
 
-
+// 엄밀히 말하면 flutter화면은 Webview 컴포넌트이지 iframe이 아니지만 이해의 편의를 위해 iframe이라고 부르고 있다.
 
 class FlutterBridge(
     private val hostWeb: WebView,
@@ -155,7 +156,7 @@ class FlutterBridge(
         flutterWeb.requestLayout()
 
         hostWeb.setOnTouchListener(null)
-        val js = """window.postMessage({ action: "iframe-collapsed" }, "*");""".trimIndent()
+        val js = """window.postMessage({ action: "iframeCollapsed" }, "*");""".trimIndent()
         Handler(Looper.getMainLooper()).postDelayed({
             flutterWeb.evaluateJavascript(js, null)
         }, 100)
@@ -196,9 +197,15 @@ class FlutterBridge(
             when (action) {
                 // flutterWeb이 로딩되면, hostWeb의 언어설정을 전달한다.
                 "flutterIsReady" -> {
-                    val safeLang = JSONObject.quote(currentLang)
 
-                    val js = """     window.postMessage({ action: "sendLang", lang: $safeLang }, "*"); """
+
+                    val uuid = HandleFirstLaunch().getOrCreateUUID(activity)
+                    Log.d("flutterIsReady ===>", "앱 UUID: $uuid")
+                    val safeLang = JSONObject.quote(currentLang)
+                    val safeUuid = JSONObject.quote(uuid)
+
+                    val js = "window.postMessage({ action: \"sendInitialConfig\", lang: $safeLang, uuid: $safeUuid }, \"*\");"
+
                     flutterWeb.evaluateJavascript(js, null)
                 }
                 // flutter -> android WebView 확장 요청 처리
@@ -222,9 +229,8 @@ class FlutterBridge(
                         flutterWeb.layoutParams = params
                         flutterWeb.requestLayout()
                         // android->flutter 확장 완료 notify
-                        val js = """
-    window.postMessage({ action: "iframe-expanded" }, "*");
-""".trimIndent()
+                        val js = "window.postMessage({ action: \"iframeExpanded\" }, \"*\");"
+
                         flutterWeb.evaluateJavascript(js, null)
                         // 키보드 올라올 때 WebView 높이 자동 조절
                         KeyboardUtils.setupKeyboardTranslation(activity, flutterWeb)

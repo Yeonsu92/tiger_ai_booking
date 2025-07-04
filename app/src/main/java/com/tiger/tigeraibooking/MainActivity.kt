@@ -25,13 +25,14 @@ import androidx.core.view.WindowInsetsCompat
 import org.json.JSONObject
 import java.io.File
 
+import com.tiger.tigeraibooking.utils.HandleFirstLaunch
+
 class MainActivity : AppCompatActivity() {
     private lateinit var flutterWeb: WebView
     private lateinit var hostWeb: WebView
     private val siteLang:String = "EN" // 기본값
     private var isBackHandlerEnabled = true // 무한 루프 방지용 플래그
     private val handler = Handler(Looper.getMainLooper())
-
 
     private fun clearWebViewCache(context: Context) {
         try {
@@ -176,36 +177,14 @@ class MainActivity : AppCompatActivity() {
         webSettings.loadsImagesAutomatically = true
         webSettings.domStorageEnabled = true
         webSettings.cacheMode = WebSettings.LOAD_NO_CACHE
-//// 롱프레스 선택 가능하게 하는 법 모색중.
-//        flutterWeb.isLongClickable = true
-//        flutterWeb.isFocusable = true
-//        flutterWeb.isFocusableInTouchMode = true
-//
-//        flutterWeb.setOnLongClickListener { false } // 롱클릭 기본 동작 허용
 
         flutterWeb.setBackgroundColor(Color.TRANSPARENT)
         flutterWeb.addJavascriptInterface(flutterBridge, "AndroidBridge")
-        flutterWeb.webViewClient = object :WebViewClient() {
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
-                //// 롱프레스 선택 가능하게 하는 법 모색중.
-                flutterWeb.evaluateJavascript(
-                    """
-            (function() {
-                document.body.style.webkitUserSelect = 'text';
-                document.body.style.userSelect = 'text';
-            })();
-            """.trimIndent(),
-                    null
-                )
-            }
-
-
-        }
+        flutterWeb.webViewClient = WebViewClient()
         flutterWeb.webChromeClient = WebChromeClient()
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
- flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}")
+flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}")
     }
     // dispatchKeyEvent 수정 - 무한 루프 방지
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

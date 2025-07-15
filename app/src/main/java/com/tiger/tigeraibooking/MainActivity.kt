@@ -10,6 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.KeyEvent
+import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.JsResult
@@ -24,8 +25,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import org.json.JSONObject
 import java.io.File
-
-import com.tiger.tigeraibooking.utils.HandleFirstLaunch
 
 class MainActivity : AppCompatActivity() {
     private lateinit var flutterWeb: WebView
@@ -44,6 +43,8 @@ class MainActivity : AppCompatActivity() {
             Log.e("WebViewCache", "Failed to clear cache: ${e.message}")
         }
     }
+
+    private val useTestServer = false;
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -120,8 +121,12 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
         }
+            if (useTestServer) {
+                hostWeb.loadUrl("https://dev-renew.tigerbooking.golf/")
+            } else {
+                hostWeb.loadUrl("https://www.tigerbooking.golf")
+            }
 
-        hostWeb.loadUrl("https://www.tigerbooking.golf")
         hostWeb.webViewClient = object : WebViewClient() {
             // [navigateHost] 네이게이션이 끝나면 flutter에게 알려, 플러터 웹뷰를 닫는다.
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
@@ -143,6 +148,11 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url);
                 flutterBridge.readLanguageFromLocalStorage();
+
+                // flutterWeb이 보이는건 ostWeb이 로드된 이후로만
+                if (flutterWeb.visibility != View.VISIBLE) {
+                    flutterWeb.visibility = View.VISIBLE
+                }
 
                 //flutter 메시지에 runScriptOnHostPageFinish이 추가된 버전이 배포되면 해제해도됨
                if (flutterBridge.shouldRunScriptOnNextFinish) {
@@ -170,6 +180,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+
         // flutterWeb 설정
         val webSettings: WebSettings = flutterWeb.settings
         webSettings.javaScriptEnabled = true
@@ -184,7 +195,12 @@ class MainActivity : AppCompatActivity() {
         flutterWeb.webChromeClient = WebChromeClient()
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}")
+
+        if (useTestServer) {
+
+           flutterWeb.loadUrl("https://tigertest.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}")
+        }
+        else{ flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}") }
     }
     // dispatchKeyEvent 수정 - 무한 루프 방지
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

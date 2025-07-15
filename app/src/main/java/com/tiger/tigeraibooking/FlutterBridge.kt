@@ -36,6 +36,7 @@ class FlutterBridge(
     private var runScriptOnNextFinish = false;
     private var collapseIframeBySideEffect = false
     private var currentLang:String = "EN"
+    private var isFlutterExpanded=false
 
     val shouldRunScriptOnNextFinish :Boolean    get() = runScriptOnNextFinish
     val shouldCollapseIframeBySideEffect:Boolean get() =  collapseIframeBySideEffect
@@ -213,7 +214,7 @@ class FlutterBridge(
                 "expandIframe" -> {
                     // hostWeb 터치 차단 (optional)
                     hostWeb.setOnTouchListener { _, _ -> true } // true = consume touch
-
+                    isFlutterExpanded = true
                         // flutter가 확장에 대비할 시간을 준다.
                   Handler(Looper.getMainLooper()).postDelayed({
                         val params = flutterWeb.layoutParams as ConstraintLayout.LayoutParams
@@ -233,15 +234,17 @@ class FlutterBridge(
 
                         flutterWeb.evaluateJavascript(js, null)
                         // 키보드 올라올 때 WebView 높이 자동 조절
-                        KeyboardUtils.setupKeyboardTranslation(activity, flutterWeb)
+                        KeyboardUtils.setupKeyboardTranslation(activity, flutterWeb,
+                            shouldTranslate = { isFlutterExpanded }  )
                    }, 200)
 
 
                 }
                 // flutter -> android WebView 축소 요청 처리
                 "collapseIframe" -> {
-
+                isFlutterExpanded = false
                     collapseFlutterWeb()
+
                 }
                 "navigateHost" -> {
                     val data = msg.optJSONObject("data")

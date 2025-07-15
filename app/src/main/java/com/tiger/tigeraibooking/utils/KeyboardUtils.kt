@@ -12,7 +12,8 @@ object KeyboardUtils {
     fun setupKeyboardTranslation(
         activity: Activity,
         targetWebView: WebView,
-        minKeyboardHeightRatio: Double = 0.15
+        minKeyboardHeightRatio: Double = 0.15,
+        shouldTranslate: () -> Boolean = { true }
     ) {
         val rootView = activity.window.decorView.findViewById<View>(android.R.id.content)
 
@@ -22,6 +23,8 @@ object KeyboardUtils {
             var maxVisibleHeight = 0
 
             override fun onGlobalLayout() {
+
+                if (!shouldTranslate()) return
                 val rect = Rect()
                 rootView.getWindowVisibleDisplayFrame(rect)
 

@@ -29,6 +29,7 @@ import java.io.File
 class MainActivity : AppCompatActivity() {
     private lateinit var flutterWeb: WebView
     private lateinit var hostWeb: WebView
+    private lateinit var cSplashScreen:View
     private val siteLang:String = "EN" // 기본값
     private var isBackHandlerEnabled = true // 무한 루프 방지용 플래그
     private val handler = Handler(Looper.getMainLooper())
@@ -63,6 +64,7 @@ class MainActivity : AppCompatActivity() {
 
         hostWeb = findViewById(R.id.hostWebView)
         flutterWeb = findViewById(R.id.flutterWebView)
+        cSplashScreen = findViewById(R.id.splashView)
 
         val flutterBridge = FlutterBridge(hostWeb, flutterWeb, this)
 
@@ -109,6 +111,7 @@ class MainActivity : AppCompatActivity() {
         // hostWeb 설정
         hostWeb.settings.javaScriptEnabled = true
         hostWeb.settings.domStorageEnabled = true
+        hostWeb.settings.textZoom = 100
         hostWeb.addJavascriptInterface(flutterBridge, "AndroidBridge")
         hostWeb.webChromeClient = object : WebChromeClient() {
             override fun onJsAlert(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
@@ -149,10 +152,21 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url);
                 flutterBridge.readLanguageFromLocalStorage();
 
-                // flutterWeb이 보이는건 ostWeb이 로드된 이후로만
+                //스플래시 종료
+                if (cSplashScreen.visibility == View.VISIBLE) {
+                    cSplashScreen.visibility = View.INVISIBLE
+                }
+
+//hostWeb visible
+                if (hostWeb.visibility != View.VISIBLE) {
+                    hostWeb.visibility = View.VISIBLE
+                }
+
+                // flutterWeb visible
                 if (flutterWeb.visibility != View.VISIBLE) {
                     flutterWeb.visibility = View.VISIBLE
                 }
+
 
                 //flutter 메시지에 runScriptOnHostPageFinish이 추가된 버전이 배포되면 해제해도됨
                if (flutterBridge.shouldRunScriptOnNextFinish) {
@@ -188,6 +202,7 @@ class MainActivity : AppCompatActivity() {
         webSettings.loadsImagesAutomatically = true
         webSettings.domStorageEnabled = true
         webSettings.cacheMode = WebSettings.LOAD_NO_CACHE
+        webSettings.textZoom = 100
 
         flutterWeb.setBackgroundColor(Color.TRANSPARENT)
         flutterWeb.addJavascriptInterface(flutterBridge, "AndroidBridge")
@@ -200,7 +215,9 @@ class MainActivity : AppCompatActivity() {
 
            flutterWeb.loadUrl("https://tigertest.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}")
         }
-        else{ flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}") }
+        else{
+
+            flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}") }
     }
     // dispatchKeyEvent 수정 - 무한 루프 방지
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

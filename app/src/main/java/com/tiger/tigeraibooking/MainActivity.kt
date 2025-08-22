@@ -1,9 +1,13 @@
 package com.tiger.tigeraibooking
 
+import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Rect
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -12,12 +16,15 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.view.WindowManager
 import android.webkit.JsResult
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -26,9 +33,11 @@ import androidx.core.view.WindowInsetsCompat
 import org.json.JSONObject
 import java.io.File
 
+
 class MainActivity : AppCompatActivity() {
     private lateinit var flutterWeb: WebView
     private lateinit var hostWeb: WebView
+    private lateinit var flutterContainer: ViewGroup
     private lateinit var cSplashScreen:View
     private val siteLang:String = "EN" // 기본값
     private var isBackHandlerEnabled = true // 무한 루프 방지용 플래그
@@ -64,6 +73,7 @@ class MainActivity : AppCompatActivity() {
 
         hostWeb = findViewById(R.id.hostWebView)
         flutterWeb = findViewById(R.id.flutterWebView)
+       // flutterContainer = findViewById(R.id.flutterWebHolder)
         cSplashScreen = findViewById(R.id.splashView)
 
         val flutterBridge = FlutterBridge(hostWeb, flutterWeb, this)
@@ -143,8 +153,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-
-
             //hostWeb의 onPageFinshed 될 때마다 서버에 요청해서 특정 js파일을 실행시키는 로직.
             //목적 : 안드로이드 파일 수정 없이도 hostWeb의 onPageFinished에 다양한 이벤트를 등록하기 위함
 
@@ -206,19 +214,72 @@ class MainActivity : AppCompatActivity() {
 
         flutterWeb.setBackgroundColor(Color.TRANSPARENT)
         flutterWeb.addJavascriptInterface(flutterBridge, "AndroidBridge")
-        flutterWeb.webViewClient = WebViewClient()
+        flutterWeb.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                val uri = request.url
+                val scheme = uri.scheme?.lowercase() ?: return false
+                val host = uri.host?.lowercase().orEmpty()
+                val isHttp = scheme == "http" || scheme == "https"
+
+                // 구글맵에서 GOOGLE로고 클릭시, 앱 밖으로 이동되는 부분 처리
+                if (scheme == "intent") {
+                    return try {
+                        val intent = Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
+                        val pm = view.context.packageManager
+                        when {
+                            intent.resolveActivity(pm) != null -> {
+                                view.context.startActivity(intent); true
+                            }
+                            !intent.getStringExtra("browser_fallback_url").isNullOrEmpty() -> {
+                                view.loadUrl(intent.getStringExtra("browser_fallback_url")!!); true
+                            }
+                            !intent.`package`.isNullOrEmpty() -> {
+                                val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${intent.`package`}"))
+                                view.context.startActivity(market); true
+                            }
+                            else -> true
+                        }
+                    } catch (_: Exception) { true }
+                }
+
+                // 2) 외부 스킴은 전부 외부로
+                val externalSchemes = setOf("tel", "mailto", "geo", "maps", "market")
+                if (scheme in externalSchemes) {
+                    return try {
+                        view.context.startActivity(Intent(Intent.ACTION_VIEW, uri)); true
+                    } catch (_: Exception) { true }
+                }
+
+                // 3) http/https지만 '구글맵' 링크는 외부로
+                val isGoogleMaps =
+                    host in setOf("maps.app.goo.gl", "goo.gl") ||
+                            host.endsWith("google.com") && (uri.path?.startsWith("/maps") == true) ||
+                            host == "maps.google.com"
+
+                if (isHttp && isGoogleMaps) {
+                    return try {
+                        val i = Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE)
+                        view.context.startActivity(i); true
+                    } catch (_: Exception) { true }
+                }
+
+                // 내부 링크는 WebView가 처리
+                return false
+            }
+        }
         flutterWeb.webChromeClient = WebChromeClient()
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         if (useTestServer) {
 
-           flutterWeb.loadUrl("https://tigertest.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}")
+           flutterWeb.loadUrl("https://tigertest.platypusoft.com/flutter")
         }
         else{
-
-            flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter?_ts=${System.currentTimeMillis()}") }
+         flutterWeb.loadUrl("https://tiger.platypusoft.com/flutter") }
     }
+
+
     // dispatchKeyEvent 수정 - 무한 루프 방지
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_BACK) {
@@ -250,4 +311,6 @@ class MainActivity : AppCompatActivity() {
     }
 
 }
+
+
 

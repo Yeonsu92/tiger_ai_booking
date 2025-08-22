@@ -9,6 +9,7 @@ import android.util.Log
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import android.widget.FrameLayout
 import org.json.JSONObject
 import androidx.constraintlayout.widget.ConstraintLayout
 import com.google.gson.Gson
@@ -30,13 +31,15 @@ import com.tiger.tigeraibooking.utils.dpToPx
 class FlutterBridge(
     private val hostWeb: WebView,
     private val flutterWeb: WebView,
+  //  private val flutterContainer:ViewGroup,
     private val activity: Activity
 ) {
 
     private var runScriptOnNextFinish = false;
     private var collapseIframeBySideEffect = false
     private var currentLang:String = "EN"
-    private var isFlutterExpanded=false
+     var isFlutterExpanded=false
+
 
     val shouldRunScriptOnNextFinish :Boolean    get() = runScriptOnNextFinish
     val shouldCollapseIframeBySideEffect:Boolean get() =  collapseIframeBySideEffect
@@ -233,9 +236,15 @@ class FlutterBridge(
                         val js = "window.postMessage({ action: \"iframeExpanded\" }, \"*\");"
 
                         flutterWeb.evaluateJavascript(js, null)
-                        // 키보드 올라올 때 WebView 높이 자동 조절
-                        KeyboardUtils.setupKeyboardTranslation(activity, flutterWeb,
-                            shouldTranslate = { isFlutterExpanded }  )
+
+
+                          KeyboardUtils.setupImeRemainder(
+                              activity = activity,
+                              container = flutterWeb,
+                              expanded = true
+                          )
+
+
                    }, 200)
 
 
@@ -243,6 +252,11 @@ class FlutterBridge(
                 // flutter -> android WebView 축소 요청 처리
                 "collapseIframe" -> {
                 isFlutterExpanded = false
+                    KeyboardUtils.setupImeRemainder(
+                        activity = activity,
+                        container = flutterWeb,
+                        expanded = false
+                    )
                     collapseFlutterWeb()
 
                 }
@@ -281,5 +295,7 @@ class FlutterBridge(
             }
         }
     }
+
+
 }
 

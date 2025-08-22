@@ -14,11 +14,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.WithFlutterWeb"
         android:usesCleartextTraffic="true"
+
         tools:targetApi="31">
         <activity
             android:name=".MainActivity"
             android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize"
+        android:fitsSystemWindows="true"
+            android:windowSoftInputMode="stateHidden|adjustNothing"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
